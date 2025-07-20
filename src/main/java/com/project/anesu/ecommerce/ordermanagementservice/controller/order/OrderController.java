@@ -4,7 +4,6 @@ import static com.project.anesu.ecommerce.ordermanagementservice.controller.orde
 
 import com.project.anesu.ecommerce.ordermanagementservice.entity.address.Address;
 import com.project.anesu.ecommerce.ordermanagementservice.entity.order.Order;
-import com.project.anesu.ecommerce.ordermanagementservice.entity.order.OrderStatus;
 import com.project.anesu.ecommerce.ordermanagementservice.model.OrderService;
 import java.util.List;
 import lombok.AllArgsConstructor;
@@ -23,7 +22,12 @@ public class OrderController {
   public ResponseEntity<Order> createOrder(@RequestBody Order order) {
 
     Order createdOrder = orderService.createOrder(order, order.getOrderItem());
-    return ResponseEntity.status(HttpStatus.OK).body(createdOrder);
+
+    if (createdOrder != null) {
+      return ResponseEntity.ok().body(createdOrder);
+    } else {
+      return ResponseEntity.badRequest().build();
+    }
   }
 
   @PostMapping(ADD_DELIVERY_ADDRESS)
@@ -48,20 +52,19 @@ public class OrderController {
   @PutMapping(PROCESS_ORDER)
   public Order processPendingOrder(@PathVariable Long orderId) {
 
-    return orderService.processPendingOrder(orderId, OrderStatus.ORDER_PLACED);
+    return orderService.processPendingOrder(orderId);
   }
 
   @PutMapping(SEND_ORDER_FOR_DELIVERY)
   public Order sendOutOrderToDeliverToCustomer(@PathVariable Long orderId) {
 
-    return orderService.sendOrderOutForDelivery(orderId, OrderStatus.OUT_FOR_DELIVERY);
+    return orderService.sendOrderOutForDelivery(orderId);
   }
 
   @PutMapping(MARK_AS_DELIVERED)
   public Order markOrderAsDelivered(@PathVariable Long orderId) {
 
-    return orderService.markAsDeliveredAfterSuccessfulDelivery(
-        orderId, OrderStatus.OUT_FOR_DELIVERY);
+    return orderService.markAsDeliveredAfterSuccessfulDelivery(orderId);
   }
 
   @PutMapping(CANCEL_ORDER)
