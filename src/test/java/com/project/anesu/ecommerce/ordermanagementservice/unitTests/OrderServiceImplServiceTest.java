@@ -12,6 +12,7 @@ import com.project.anesu.ecommerce.ordermanagementservice.entity.address.Address
 import com.project.anesu.ecommerce.ordermanagementservice.entity.order.Order;
 import com.project.anesu.ecommerce.ordermanagementservice.entity.order.OrderItem;
 import com.project.anesu.ecommerce.ordermanagementservice.entity.order.OrderStatus;
+import com.project.anesu.ecommerce.ordermanagementservice.entity.order.OrderValidationEndpoints;
 import com.project.anesu.ecommerce.ordermanagementservice.model.repository.OrderRepository;
 import com.project.anesu.ecommerce.ordermanagementservice.service.OrderServiceImpl;
 import com.project.anesu.ecommerce.ordermanagementservice.service.exception.InvalidOrderException;
@@ -59,7 +60,7 @@ class OrderServiceImplServiceTest {
 
     doNothing().when(orderValidatorMock).validateNewOrder(any(Order.class), anyList());
 
-    RestCallToInventoryService("http://localhost:9091/api/stock/validate-and-deduct-product");
+    RestCallToInventoryService(OrderValidationEndpoints.VALIDATE_AND_DEDUCT_PRODUCT.getUrl());
 
     Order newOrder = new Order();
     newOrder.setId(1L);
@@ -187,9 +188,9 @@ class OrderServiceImplServiceTest {
     when(orderRepositoryMock.save(any(Order.class))).thenReturn(order);
 
     // When
-    Order processOrder = cut.processPendingOrder(orderId, order.getOrderStatus());
+    Order processOrder = cut.processPendingOrder(orderId);
     // Then
-    assertThat(processOrder.getOrderStatus()).isEqualTo(OrderStatus.PENDING_TO_PROCESSING);
+    assertThat(processOrder.getOrderStatus()).isEqualTo(OrderStatus.PROCESSING);
 
     verify(orderRepositoryMock, times(1)).save(order);
   }
@@ -205,8 +206,7 @@ class OrderServiceImplServiceTest {
         .thenReturn(Optional.empty());
 
     // When
-    assertThrows(
-        OrderNotFoundException.class, () -> cut.processPendingOrder(orderId, currentOrderStatus));
+    assertThrows(OrderNotFoundException.class, () -> cut.processPendingOrder(orderId));
 
     // Then
     verify(orderRepositoryMock, times(1)).findByIdAndOrderStatus(orderId, currentOrderStatus);
@@ -220,14 +220,14 @@ class OrderServiceImplServiceTest {
     Long orderId = 1L;
     Order order = new Order();
     order.setId(orderId);
-    order.setOrderStatus(OrderStatus.PENDING_TO_PROCESSING);
+    order.setOrderStatus(OrderStatus.PROCESSING);
 
     when(orderRepositoryMock.findByIdAndOrderStatus(orderId, order.getOrderStatus()))
         .thenReturn(Optional.of(order));
     when(orderRepositoryMock.save(any(Order.class))).thenReturn(order);
 
     // When
-    Order sendOrder = cut.sendOrderOutForDelivery(orderId, order.getOrderStatus());
+    Order sendOrder = cut.sendOrderOutForDelivery(orderId);
 
     // Then
     assertThat(sendOrder.getOrderStatus()).isEqualTo(OrderStatus.OUT_FOR_DELIVERY);
@@ -240,15 +240,13 @@ class OrderServiceImplServiceTest {
 
     // Given
     Long orderId = 1L;
-    OrderStatus currentOrderStatus = OrderStatus.ORDER_PLACED;
+    OrderStatus currentOrderStatus = OrderStatus.PROCESSING;
 
     when(orderRepositoryMock.findByIdAndOrderStatus(orderId, currentOrderStatus))
         .thenReturn(Optional.empty());
 
     // When
-    assertThrows(
-        OrderNotFoundException.class,
-        () -> cut.sendOrderOutForDelivery(orderId, currentOrderStatus));
+    assertThrows(OrderNotFoundException.class, () -> cut.sendOrderOutForDelivery(orderId));
 
     // Then
 
@@ -270,8 +268,7 @@ class OrderServiceImplServiceTest {
     when(orderRepositoryMock.save(any(Order.class))).thenReturn(order);
 
     // When
-    Order deliverOrder =
-        cut.markAsDeliveredAfterSuccessfulDelivery(orderId, order.getOrderStatus());
+    Order deliverOrder = cut.markAsDeliveredAfterSuccessfulDelivery(orderId);
 
     // Then
     assertThat(deliverOrder.getOrderStatus()).isEqualTo(OrderStatus.DELIVERED);
@@ -292,8 +289,7 @@ class OrderServiceImplServiceTest {
 
     // When
     assertThrows(
-        OrderNotFoundException.class,
-        () -> cut.markAsDeliveredAfterSuccessfulDelivery(orderId, orderStatus));
+        OrderNotFoundException.class, () -> cut.markAsDeliveredAfterSuccessfulDelivery(orderId));
 
     // Then
     verify(orderRepositoryMock, times(1)).findByIdAndOrderStatus(orderId, orderStatus);
@@ -372,7 +368,7 @@ class OrderServiceImplServiceTest {
     order.setCancellationReason("Reason.");
     order.setOrderItem(orderItems);
 
-    RestCallToInventoryService("http://localhost:9091/api/stock/add-returned-inventory");
+    RestCallToInventoryService(OrderValidationEndpoints.ADD_RETURNED_INVENTORY.getUrl());
 
     when(orderRepositoryMock.findById(orderId)).thenReturn(Optional.of(order));
     when(orderRepositoryMock.save(Mockito.any(Order.class))).thenReturn(order);
