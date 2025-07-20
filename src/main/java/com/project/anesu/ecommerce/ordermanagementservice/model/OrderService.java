@@ -3,7 +3,6 @@ package com.project.anesu.ecommerce.ordermanagementservice.model;
 import com.project.anesu.ecommerce.ordermanagementservice.entity.address.Address;
 import com.project.anesu.ecommerce.ordermanagementservice.entity.order.Order;
 import com.project.anesu.ecommerce.ordermanagementservice.entity.order.OrderItem;
-import com.project.anesu.ecommerce.ordermanagementservice.entity.order.OrderStatus;
 import com.project.anesu.ecommerce.ordermanagementservice.service.exception.OrderNotFoundException;
 import java.util.List;
 
@@ -27,18 +26,16 @@ public interface OrderService {
    * Process a pending order by changing its status.
    *
    * @param orderId the ID of the order to process
-   * @param status the new {@link OrderStatus} to apply
    * @return the updated {@link Order}
    * @throws OrderNotFoundException if the order does not exist
    */
-  Order processPendingOrder(Long orderId, OrderStatus status) throws OrderNotFoundException;
+  Order processPendingOrder(Long orderId) throws OrderNotFoundException;
 
   /** Update order status to OUT_FOR_DELIVERY. */
-  Order sendOrderOutForDelivery(Long orderId, OrderStatus status) throws OrderNotFoundException;
+  Order sendOrderOutForDelivery(Long orderId) throws OrderNotFoundException;
 
   /** Marks the order as DELIVERED. */
-  Order markAsDeliveredAfterSuccessfulDelivery(Long orderId, OrderStatus status)
-      throws OrderNotFoundException;
+  Order markAsDeliveredAfterSuccessfulDelivery(Long orderId) throws OrderNotFoundException;
 
   /**
    * Retrieves an order by its ID.
