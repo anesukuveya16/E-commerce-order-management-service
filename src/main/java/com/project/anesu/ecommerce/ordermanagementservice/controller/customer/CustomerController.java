@@ -23,12 +23,6 @@ public class CustomerController {
     return customerService.createCustomer(customer);
   }
 
-  @GetMapping(GET_CUSTOMER_BY_ID)
-  public Customer getCustomerById(@PathVariable Long customerId) {
-
-    return customerService.getCustomerById(customerId);
-  }
-
   @PutMapping(UPDATE_CUSTOMER)
   public ResponseEntity<Customer> updateCustomer(
       @PathVariable Long customerId, @RequestBody Customer customer) {
@@ -39,6 +33,12 @@ public class CustomerController {
     } else {
       return ResponseEntity.notFound().build();
     }
+  }
+
+  @GetMapping(GET_CUSTOMER_BY_ID)
+  public Customer getCustomerById(@PathVariable Long customerId) {
+
+    return customerService.getCustomerById(customerId);
   }
 
   @GetMapping(GET_ALL_CUSTOMERS)

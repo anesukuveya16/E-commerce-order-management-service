@@ -7,10 +7,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClientException;
 
 @ControllerAdvice
-public class GlobalExceptionHandler {
+public class OrderControllerAdvice {
 
   @ExceptionHandler(IllegalStateException.class)
   public ResponseEntity<Map<String, String>> handleIllegalStateException(IllegalStateException ex) {
@@ -38,5 +39,10 @@ public class GlobalExceptionHandler {
     return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
   }
 
-  // Add other handlers as needed
+  @ExceptionHandler(HttpClientErrorException.class)
+  public ResponseEntity<Map<String, String>> handleHttpClientErrorException(
+      HttpClientErrorException ex) {
+    Map<String, String> errorResponse = Map.of("message", ex.getMessage());
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+  }
 }

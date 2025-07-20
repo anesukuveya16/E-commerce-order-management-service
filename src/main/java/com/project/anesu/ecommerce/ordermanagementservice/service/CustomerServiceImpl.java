@@ -79,11 +79,7 @@ public class CustomerServiceImpl implements CustomerService {
     List<Address> savedAddresses = customer.getSavedAddresses();
     for (Address existingAddress : savedAddresses) {
       if (existingAddress.getId().equals(addressId)) {
-        existingAddress.setStreetName(updatedAddress.getStreetName());
-        existingAddress.setStreetNumber(updatedAddress.getStreetNumber());
-        existingAddress.setState(updatedAddress.getState());
-        existingAddress.setZipCode(updatedAddress.getZipCode());
-        existingAddress.setCity(updatedAddress.getCity());
+        existingCustomerDeliveryAddress(updatedAddress, existingAddress);
 
         break;
       }
@@ -122,5 +118,13 @@ public class CustomerServiceImpl implements CustomerService {
     existingCustomer.setBirthDate(updatedCustomer.getBirthDate());
     existingCustomer.setPhoneNumber(updatedCustomer.getPhoneNumber());
     return existingCustomer;
+  }
+
+  private void existingCustomerDeliveryAddress(Address updatedAddress, Address existingAddress) {
+    existingAddress.setStreetName(updatedAddress.getStreetName());
+    existingAddress.setStreetNumber(updatedAddress.getStreetNumber());
+    existingAddress.setState(updatedAddress.getState());
+    existingAddress.setZipCode(updatedAddress.getZipCode());
+    existingAddress.setCity(updatedAddress.getCity());
   }
 }
