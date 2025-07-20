@@ -4,6 +4,7 @@ import com.project.anesu.ecommerce.ordermanagementservice.entity.address.Address
 import com.project.anesu.ecommerce.ordermanagementservice.entity.order.Order;
 import com.project.anesu.ecommerce.ordermanagementservice.entity.order.OrderItem;
 import com.project.anesu.ecommerce.ordermanagementservice.entity.order.OrderStatus;
+import com.project.anesu.ecommerce.ordermanagementservice.entity.order.OrderValidationEndpoints;
 import com.project.anesu.ecommerce.ordermanagementservice.model.OrderService;
 import com.project.anesu.ecommerce.ordermanagementservice.model.repository.OrderRepository;
 import com.project.anesu.ecommerce.ordermanagementservice.service.exception.AddressNotFoundException;
@@ -21,8 +22,6 @@ import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 @Service
@@ -32,44 +31,24 @@ public class OrderServiceImpl implements OrderService {
   private final RestTemplate restTemplate;
   private final OrderRepository orderRepository;
   private final OrderValidator orderValidator;
-  private static final String VALIDATE_ORDER = "http://localhost:9091";
 
   @Override
   public Order createOrder(Order order, List<OrderItem> orderItems) throws OrderNotFoundException {
 
     validateNewOrder(order, orderItems);
 
-    List<Map<String, Object>> batchInventoryValidationRequest = new ArrayList<>();
-    for (OrderItem orderItem : orderItems) {
-      Map<String, Object> orderItemData = new HashMap<>();
-      orderItemData.put("productId", orderItem.getProductId());
-      orderItemData.put("quantity", orderItem.getQuantity());
-      batchInventoryValidationRequest.add(orderItemData);
+    List<Map<String, Object>> batchOrderRequest = getBatchOrderRequest(orderItems);
+
+    String validationUrl = OrderValidationEndpoints.VALIDATE_AND_DEDUCT_PRODUCT.getUrl();
+
+    ResponseEntity<String> validationResponse =
+        restTemplate.postForEntity(validationUrl, batchOrderRequest, String.class);
+
+    if (validationResponse.getStatusCode() != HttpStatus.OK) {
+      throw new ValidationFailedException("Order validation failed" + validationResponse.getBody());
     }
 
-    String validationUrl = VALIDATE_ORDER + "/api/stock/validate-and-deduct-product";
-
-    try {
-      ResponseEntity<String> validationResponse =
-          restTemplate.postForEntity(validationUrl, batchInventoryValidationRequest, String.class);
-
-      // the service itself could not process the order entirely
-      if (validationResponse.getStatusCode() != HttpStatus.OK) {
-        throw new ValidationFailedException(
-            "Order validation failed" + validationResponse.getBody());
-      }
-      // while making the request of validation
-    } catch (HttpClientErrorException e) {
-      throw new IllegalStateException(
-          "Error occurred, could not creat order successfully." + e.getResponseBodyAsString());
-    } catch (RestClientException e) {
-      throw new RestClientException("Failed to connect to Product Service" + e.getMessage());
-    }
-
-    order.setCustomerId(order.getCustomerId());
-    order.setOrderDate(LocalDateTime.now());
-    order.setOrderStatus(OrderStatus.ORDER_PLACED);
-    order.setTotalPrice(order.getTotalPrice());
+    setAdditionalOrderDetails(order);
 
     for (OrderItem orderItem : orderItems) {
       orderItem.setOrder(order);
@@ -92,28 +71,28 @@ public class OrderServiceImpl implements OrderService {
   }
 
   @Override
-  public Order processPendingOrder(Long orderId, OrderStatus status) throws OrderNotFoundException {
+  public Order processPendingOrder(Long orderId) throws OrderNotFoundException {
 
-    Order orderRequest = getOrderByIdAndStatus(orderId, status);
-    orderRequest.setOrderStatus(OrderStatus.PENDING_TO_PROCESSING);
+    Order orderRequest = getOrderByIdAndStatus(orderId, OrderStatus.ORDER_PLACED);
+
+    orderRequest.setOrderStatus(OrderStatus.PROCESSING);
     return orderRepository.save(orderRequest);
   }
 
   @Override
-  public Order sendOrderOutForDelivery(Long orderId, OrderStatus status)
-      throws OrderNotFoundException {
+  public Order sendOrderOutForDelivery(Long orderId) throws OrderNotFoundException {
 
-    Order orderRequest = getOrderByIdAndStatus(orderId, status);
+    Order orderRequest = getOrderByIdAndStatus(orderId, OrderStatus.PROCESSING);
+
     orderRequest.setOrderStatus(OrderStatus.OUT_FOR_DELIVERY);
-
     return orderRepository.save(orderRequest);
   }
 
   @Override
-  public Order markAsDeliveredAfterSuccessfulDelivery(Long orderId, OrderStatus status)
-      throws OrderNotFoundException {
+  public Order markAsDeliveredAfterSuccessfulDelivery(Long orderId) throws OrderNotFoundException {
 
-    Order orderRequest = getOrderByIdAndStatus(orderId, status);
+    Order orderRequest = getOrderByIdAndStatus(orderId, OrderStatus.OUT_FOR_DELIVERY);
+
     orderRequest.setOrderStatus(OrderStatus.DELIVERED);
     return orderRepository.save(orderRequest);
   }
@@ -149,11 +128,7 @@ public class OrderServiceImpl implements OrderService {
     boolean updated = false;
     for (Address existingAddressToUpdate : savedAddresses) {
       if (existingAddressToUpdate.getId().equals(addressId)) {
-        existingAddressToUpdate.setStreetName(updatedOrderAddress.getStreetName());
-        existingAddressToUpdate.setStreetNumber(updatedOrderAddress.getStreetNumber());
-        existingAddressToUpdate.setCity(updatedOrderAddress.getCity());
-        existingAddressToUpdate.setState(updatedOrderAddress.getState());
-        existingAddressToUpdate.setZipCode(updatedOrderAddress.getZipCode());
+        updateExistingDeliveryAddress(updatedOrderAddress, existingAddressToUpdate);
 
         existingAddressToUpdate.setOrder(order);
         updated = true;
@@ -164,7 +139,6 @@ public class OrderServiceImpl implements OrderService {
     if (!updated) {
       throw new AddressNotFoundException("No address found with ID: " + addressId);
     }
-
     return orderRepository.save(order);
   }
 
@@ -178,28 +152,16 @@ public class OrderServiceImpl implements OrderService {
 
     List<OrderItem> orderItems = orderRequest.getOrderItem();
 
-    List<Map<String, Object>> orderBatchRequest = new ArrayList<>();
+    List<Map<String, Object>> batchOrderRequest = getBatchOrderRequest(orderItems);
 
-    for (OrderItem orderItem : orderItems) {
-      Map<String, Object> orderItemData = new HashMap<>();
-      orderItemData.put("productId", orderItem.getProductId());
-      orderItemData.put("quantity", orderItem.getQuantity());
-      orderBatchRequest.add(orderItemData);
-    }
+    String returnInventoryUrl = OrderValidationEndpoints.ADD_RETURNED_INVENTORY.getUrl();
 
-    String returnInventoryUrl = VALIDATE_ORDER + "/api/stock/add-returned-inventory";
+    ResponseEntity<String> expectedResponse =
+        restTemplate.postForEntity(returnInventoryUrl, batchOrderRequest, String.class);
 
-    try {
-      ResponseEntity<String> expectedResponse =
-          restTemplate.postForEntity(returnInventoryUrl, orderBatchRequest, String.class);
-
-      if (expectedResponse.getStatusCode() != HttpStatus.OK) {
-        throw new InventoryReturnFailureException(
-            "An error occurred while trying to return inventory.");
-      }
-
-    } catch (RestClientException e) {
-      throw new RestClientException("Failed to connect to Product Service" + e.getMessage());
+    if (expectedResponse.getStatusCode() != HttpStatus.OK) {
+      throw new InventoryReturnFailureException(
+          "An error occurred while trying to return inventory.");
     }
 
     orderRepository.save(orderRequest);
@@ -208,5 +170,33 @@ public class OrderServiceImpl implements OrderService {
 
   private void validateNewOrder(Order order, List<OrderItem> orderItems) {
     orderValidator.validateNewOrder(order, orderItems);
+  }
+
+  private List<Map<String, Object>> getBatchOrderRequest(List<OrderItem> orderItems) {
+    List<Map<String, Object>> batchOrderRequest = new ArrayList<>();
+
+    for (OrderItem orderItem : orderItems) {
+      Map<String, Object> orderItemData = new HashMap<>();
+      orderItemData.put("productId", orderItem.getProductId());
+      orderItemData.put("quantity", orderItem.getQuantity());
+      batchOrderRequest.add(orderItemData);
+    }
+    return batchOrderRequest;
+  }
+
+  private void updateExistingDeliveryAddress(
+      Address updatedOrderAddress, Address existingAddressToUpdate) {
+    existingAddressToUpdate.setStreetName(updatedOrderAddress.getStreetName());
+    existingAddressToUpdate.setStreetNumber(updatedOrderAddress.getStreetNumber());
+    existingAddressToUpdate.setCity(updatedOrderAddress.getCity());
+    existingAddressToUpdate.setState(updatedOrderAddress.getState());
+    existingAddressToUpdate.setZipCode(updatedOrderAddress.getZipCode());
+  }
+
+  private void setAdditionalOrderDetails(Order order) {
+    order.setCustomerId(order.getCustomerId());
+    order.setOrderDate(LocalDateTime.now());
+    order.setOrderStatus(OrderStatus.ORDER_PLACED);
+    order.setTotalPrice(order.getTotalPrice());
   }
 }
