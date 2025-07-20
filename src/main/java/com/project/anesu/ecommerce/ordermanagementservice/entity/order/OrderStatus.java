@@ -2,7 +2,7 @@ package com.project.anesu.ecommerce.ordermanagementservice.entity.order;
 
 public enum OrderStatus {
   ORDER_PLACED,
-  PENDING_TO_PROCESSING,
+  PROCESSING,
   OUT_FOR_DELIVERY,
   DELIVERED,
   CANCELLED
