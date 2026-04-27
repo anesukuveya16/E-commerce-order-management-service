@@ -1,7 +1,7 @@
 # E-commerce: Order management service
 
 This microservice is part of an **E-commerce platform** that focuses operations such as managing customer inforamtion and handles order related operations. 
-It is also a very important critical the Inventory Management Service, to verify and update stock in real-time during operations such as order creation or order cancellation.
+It is also a very important critical part of the Inventory Management Service, to verify and update stock in real-time during operations such as order creation or order cancellation.
 
 ##  Key Features:
 
